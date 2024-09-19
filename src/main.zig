@@ -1,19 +1,31 @@
 const std = @import("std");
 
+var instr: [1024]usize = undefined;
+
+const i_ptr: usize = 0;
+
+const reg = enum(u32) { x, y };
+
+const reg_loc = packed struct(usize) {
+    reg: reg,
+    addr: u32,
+};
+
+fn call_I() void {
+    @as(*fn () void, @ptrFromInt(instr[i_ptr]))();
+}
+
+fn add() void {}
+
+var reg_x: [32]usize = undefined;
+
 pub fn main() !void {
-    // Prints to stderr (it's a shortcut based on `std.io.getStdErr()`)
-    std.debug.print("All your {s} are belong to us.\n", .{"codebase"});
+    const i = &add;
 
-    // stdout is for the actual output of your application, for example if you
-    // are implementing gzip, then only the compressed bytes should be sent to
-    // stdout, not any debugging messages.
-    const stdout_file = std.io.getStdOut().writer();
-    var bw = std.io.bufferedWriter(stdout_file);
-    const stdout = bw.writer();
+    const t = @intFromPtr(i);
 
-    try stdout.print("Run `zig build test` to run the tests.\n", .{});
-
-    try bw.flush(); // don't forget to flush!
+    instr[i_ptr] = t;
+    call_I();
 }
 
 test "simple test" {
