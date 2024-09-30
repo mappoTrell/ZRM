@@ -63,6 +63,11 @@ fn createWord(comptime T: type, data: T) ?Word {
 
 const m_ops = enum { add, sub, div, mul };
 
+const add = math(.add);
+const sub = math(.sub);
+const div = math(.div);
+const mul = math(.mul);
+
 fn math(comptime op: m_ops) fn () void {
     const math_t = struct {
         inline fn ops(comptime T: type, a: T, b: T) T {
@@ -88,9 +93,9 @@ fn math(comptime op: m_ops) fn () void {
         }
 
         fn operation() void {
-            const r1: *u64 = reg_val(@bitCast(i_ptr[1]));
-            const r2: *u64 = reg_val(@bitCast(i_ptr[2]));
-            const r3: *u64 = reg_val(@bitCast(i_ptr[3]));
+            const r1: *u64 = reg_val(@bitCast(i_ptr[1])).?;
+            const r2: *u64 = reg_val(@bitCast(i_ptr[2])).?;
+            const r3: *u64 = reg_val(@bitCast(i_ptr[3])).?;
 
             const x: Word = @bitCast(r1.*);
             const y: Word = @bitCast(r2.*);
@@ -122,8 +127,8 @@ fn end() void {
     finished = true;
 }
 
-fn reg_val(w: Word) *u64 {
-    assert(w.w_type == .Reg);
+fn reg_val(w: Word) ?*u64 {
+    if (w.w_type != .Reg) return null;
 
     const loc: Reg_Loc = @bitCast(w.data);
 
@@ -146,6 +151,19 @@ fn alloc_stack() void {
     y_ptr += x;
 
     i_ptr += 1;
+}
+
+fn move() void {
+    const arg1: Word = @bitCast(i_ptr[1]);
+    const arg2: Word = @bitCast(i_ptr[2]);
+
+    const wrd_op = reg_val(arg1);
+
+    const val: Word = if (wrd_op) |i| @bitCast(i.*) else arg1;
+
+    const tar = reg_val(arg2).?;
+
+    tar.* = @bitCast(val);
 }
 
 fn dealloc_stack() void {
@@ -229,6 +247,7 @@ pub fn main() !void {
 
 test "simple test" {
     var list = std.ArrayList(i32).init(std.testing.allocator);
+
     defer list.deinit(); // try commenting this out and see if zig detects the memory leak!
     try list.append(42);
     try std.testing.expectEqual(@as(i32, 42), list.pop());
