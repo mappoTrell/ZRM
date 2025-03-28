@@ -4,6 +4,14 @@ const std = @import("std");
 // declaratively construct a build graph that will be executed by an external
 // runner.
 pub fn build(b: *std.Build) void {
+    const tool = b.addExecutable(.{
+        .name = "generate_function_table",
+        .root_source_file = b.path("src/tools/generate_function_table.zig"),
+        .target = b.graph.host,
+    });
+
+    const tool_step = b.addRunArtifact(tool);
+    const output = tool_step.addOutputFileArg("function_table.zig");
     // Standard target options allows the person running `zig build` to choose
     // what target to build for. Here we do not override the defaults, which
     // means any target is allowed, and the default is native. Other options
@@ -15,25 +23,25 @@ pub fn build(b: *std.Build) void {
     // set a preferred release mode, allowing the user to decide how to optimize.
     const optimize = b.standardOptimizeOption(.{});
 
-    const lib = b.addStaticLibrary(.{
-        .name = "ZRM",
-        // In this case the main source file is merely a path, however, in more
-        // complicated build scripts, this could be a generated file.
-        .root_source_file = b.path("src/root.zig"),
+    const zrm = b.createModule(.{
+        .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = optimize,
     });
 
+    zrm.addAnonymousImport("function_table", .{ .root_source_file = output });
     // This declares intent for the library to be installed into the standard
     // location when the user invokes the "install" step (the default step when
     // running `zig build`).
-    b.installArtifact(lib);
 
     const exe = b.addExecutable(.{
         .name = "ZRM",
-        .root_source_file = b.path("src/main.zig"),
-        .target = target,
-        .optimize = optimize,
+        .root_module = zrm,
+    });
+
+    const exe_check = b.addExecutable(.{
+        .name = "ZRM",
+        .root_module = zrm,
     });
 
     // This declares intent for the executable to be installed into the
@@ -64,6 +72,8 @@ pub fn build(b: *std.Build) void {
     const run_step = b.step("run", "Run the app");
     run_step.dependOn(&run_cmd.step);
 
+    const check_step = b.step("check", "check app");
+    check_step.dependOn(&exe_check.step);
     // Creates a step for unit testing. This only builds the test executable
     // but does not run it.
     const lib_unit_tests = b.addTest(.{
@@ -75,9 +85,7 @@ pub fn build(b: *std.Build) void {
     const run_lib_unit_tests = b.addRunArtifact(lib_unit_tests);
 
     const exe_unit_tests = b.addTest(.{
-        .root_source_file = b.path("src/main.zig"),
-        .target = target,
-        .optimize = optimize,
+        .root_module = zrm,
     });
 
     const run_exe_unit_tests = b.addRunArtifact(exe_unit_tests);
