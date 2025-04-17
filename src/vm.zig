@@ -181,6 +181,11 @@ pub fn end() void {
     return;
 }
 
+pub fn not_implemented() void {
+    std.debug.print("not implemented", .{});
+    unreachable;
+}
+
 pub fn reg_val(w: Word) ?*Word {
     if (w.w_type != .Reg) return null;
 

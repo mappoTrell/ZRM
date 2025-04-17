@@ -14,7 +14,29 @@ const Word = VM.Word;
 const keywords = enum {};
 
 pub const functions_names = @import("function_table").Function_Table;
-fn parse() !Module {}
+
+pub const function_table: [256]*const fn () void = blk: {
+    var table: [256]*const fn () void = 256 ** &VM.not_implemented();
+    table[19] = &VM.return_fn();
+    break :blk table;
+};
+
+const Node = struct {
+    range: []u8,
+    children: []Node,
+};
+
+pub const pars_err = error{invalid};
+
+fn parse(inp: []u8, alloc: std.mem.Allocator) !Module {
+    var mod: Module = .init(alloc);
+
+    var stack = std.ArrayListUnmanaged(u8).empty;
+
+    var char: u8 = std.mem.indexOfAny(u8, inp, "{}\"") orelse return pars_err.invalid;
+
+    tok: switch (char) {}
+}
 
 test {
     const test_string =
