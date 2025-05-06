@@ -21,9 +21,14 @@ pub const function_table: [256]*const fn () void = blk: {
     break :blk table;
 };
 
-const Node = struct {
+const Term = struct {
     range: []u8,
-    children: []Node,
+    alloc: std.mem.Allocator,
+    args: std.ArrayListUnmanaged(Argument) = .empty,
+};
+
+const Argument = struct {
+    range: []u8,
 };
 
 pub const pars_err = error{invalid};
@@ -31,11 +36,35 @@ pub const pars_err = error{invalid};
 fn parse(inp: []u8, alloc: std.mem.Allocator) !Module {
     var mod: Module = .init(alloc);
 
-    var stack = std.ArrayListUnmanaged(u8).empty;
+    var stack = std.ArrayListUnmanaged(u32).empty;
 
-    var char: u8 = std.mem.indexOfAny(u8, inp, "{}\"") orelse return pars_err.invalid;
+    var idx: u32 = 0;
 
-    tok: switch (char) {}
+    var not_in_string: bool = false;
+
+    var terms = std.ArrayListUnmanaged(Term).empty;
+
+    var last_point: u32 = 0;
+
+    tok: switch (inp[idx]) {
+        '"' => {
+            not_in_string = -not_in_string;
+            continue :tok idx + 1;
+        },
+        '{' => {
+            if (not_in_string) stack.append(alloc, idx);
+            continue :tok idx + 1;
+        },
+        '.' => {
+            if (not_in_string) {
+                // const sect_start = stack.pop() orelse return error.invalid;
+                terms.append(alloc, .{ .alloc = alloc, .range = inp[last_point + 2 .. idx - 1] });
+                last_point = idx;
+                if (idx != inp.len - 1) continue :tok idx + 1;
+                break :tok;
+            }
+        },
+    }
 }
 
 test {
