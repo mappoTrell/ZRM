@@ -25,44 +25,154 @@ const Term = struct {
     range: []u8,
     alloc: std.mem.Allocator,
     args: std.ArrayListUnmanaged(Argument) = .empty,
+
+    fn init(alloc: std.mem.Allocator) Term {
+        return .{
+            .alloc = alloc,
+            .range = undefined,
+        };
+    }
 };
 
-const Argument = struct {
+const Argument = union(States) {
+    list: List,
+    value: Value,
+    tuple: Tuple,
+    idle: void,
+    string: []u8,
+};
+
+const List = struct {
+    elements: std.ArrayListUnmanaged(Argument),
+};
+
+const Tuple = struct {
+    elements: std.ArrayListUnmanaged(Argument),
+};
+
+const Value = struct {
     range: []u8,
 };
 
 pub const pars_err = error{invalid};
 
+const States = enum { value, idle, tuple, list, string };
+
+const Pos = struct {
+    arg: *Argument,
+    state: States,
+    idx: u32,
+};
+
 fn parse(inp: []u8, alloc: std.mem.Allocator) !Module {
     var mod: Module = .init(alloc);
+    var state = States.idle;
 
-    var stack = std.ArrayListUnmanaged(u32).empty;
+    var stack = std.ArrayListUnmanaged(Pos).empty;
 
     var idx: u32 = 0;
-
-    var not_in_string: bool = false;
 
     var terms = std.ArrayListUnmanaged(Term).empty;
 
     var last_point: u32 = 0;
 
+    terms.append(alloc, .init(alloc));
+
+    var current_argument: *Argument = undefined;
+
     tok: switch (inp[idx]) {
         '"' => {
-            not_in_string = -not_in_string;
-            continue :tok idx + 1;
+            if (state != .string) {
+                stack.append(alloc, .{ .idx = idx, .state = .string });
+                state = .string;
+            }
+            _ = stack.pop();
+            state = stack.getLast().state;
+
+            idx += 1;
+            continue :tok idx;
         },
         '{' => {
-            if (not_in_string) stack.append(alloc, idx);
-            continue :tok idx + 1;
+            if (state != .string) {
+                switch (current_argument.*) {
+                    .list, .tuple => |*elem| {
+                        elem.elements.append(Argument{ .tuple = .{ .elements = .empty } });
+                        current_argument = &elem.elements.getLast();
+                    },
+                    else => {
+                        return error.invalid;
+                    },
+                }
+                stack.append(alloc, .{ .idx = idx, .state = .tuple, .arg = current_argument });
+                state = .tuple;
+            }
+            idx += 1;
+            continue :tok idx;
         },
+        ',' => {
+            switch (state) {
+                .string => {},
+                .value => {
+                    switch (current_argument.*) {
+                        .list, .tuple => |*elem| {
+                            elem.elements.append(Argument{ .value = .{ .range = inp[stack.pop().?.idx..idx] } });
+                        },
+                        else => {
+                            return error.invalid;
+                        },
+                    }
+                },
+            }
+            state = stack.getLast().state;
+            idx += 1;
+            continue :tok idx;
+        },
+
         '.' => {
-            if (not_in_string) {
+            if (state != .string) {
                 // const sect_start = stack.pop() orelse return error.invalid;
                 terms.append(alloc, .{ .alloc = alloc, .range = inp[last_point + 2 .. idx - 1] });
                 last_point = idx;
-                if (idx != inp.len - 1) continue :tok idx + 1;
+                if (idx != inp.len - 1) {
+                    terms.append(alloc, .init(alloc));
+                    current_argument = &terms.getLast().args;
+                    idx += 1;
+                    continue :tok idx;
+                }
                 break :tok;
             }
+        },
+        '}' => {
+            switch (state) {
+                .string => {},
+                .value => {
+                    switch (current_argument.*) {
+                        .list, .tuple => |*elem| {
+                            elem.elements.append(Argument{ .value = .{ .range = inp[stack.pop().?.idx..idx] } });
+                        },
+                        else => {
+                            return error.invalid;
+                        },
+                    }
+                },
+            }
+
+            _ = stack.pop();
+            const elem = stack.getLastOrNull();
+
+            if (elem) |e| {
+                current_argument = e.arg;
+            }
+            idx += 1;
+            continue :tok idx;
+        },
+        else => {
+            if (state != .string and state != .value) {
+                stack.append(alloc, .{ .idx = idx, .state = .value });
+                state = .value;
+            }
+            idx += 1;
+            continue :tok idx;
         },
     }
 }
