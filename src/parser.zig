@@ -43,11 +43,11 @@ const Argument = union(States) {
 };
 
 const List = struct {
-    elements: std.ArrayListUnmanaged(Argument),
+    elements: std.ArrayListUnmanaged(u32),
 };
 
 const Tuple = struct {
-    elements: std.ArrayListUnmanaged(Argument),
+    elements: std.ArrayListUnmanaged(u32),
 };
 
 const Value = struct {
@@ -59,7 +59,7 @@ pub const pars_err = error{invalid};
 const States = enum { value, idle, tuple, list, string };
 
 const Pos = struct {
-    arg: *Argument,
+    arg: u32,
     state: States,
     idx: u32,
 };
@@ -78,7 +78,7 @@ fn parse(inp: []u8, alloc: std.mem.Allocator) !Module {
 
     terms.append(alloc, .init(alloc));
 
-    var current_argument: *Argument = undefined;
+    var current_argument: u32 = undefined;
 
     tok: switch (inp[idx]) {
         '"' => {
@@ -94,10 +94,10 @@ fn parse(inp: []u8, alloc: std.mem.Allocator) !Module {
         },
         '{' => {
             if (state != .string) {
-                switch (current_argument.*) {
+                switch (terms.getLast().args.items[current_argument]) {
                     .list, .tuple => |*elem| {
-                        elem.elements.append(Argument{ .tuple = .{ .elements = .empty } });
-                        current_argument = &elem.elements.getLast();
+                        .elements.append(Argument{ .tuple = .{ .elements = .empty } });
+                        current_argument = elem.elements.items.len;
                     },
                     else => {
                         return error.invalid;
