@@ -13,9 +13,21 @@ var instr: [1024]VM.Word = undefined;
 
 var as: u64 align(32) = 45;
 var debug_allocator: std.heap.DebugAllocator(.{}) = .init;
+
+const test_string =
+    \\{labels, 2}.
+    \\{function, square, 1, 2}.
+    \\  {label,1}.
+    \\    {func_info,{atom,square},{atom,square},1}.
+    \\  {label,2}.
+    \\    {gc_bif,'*',{f,0},1,[{x,0},{x,0}],{x,0}}.
+    \\    return.
+;
+
 pub fn main() !void {
     _ = Module;
     _ = parser.functions_names;
+
     const y = queue.Queue(u64, 4);
     const t = y.Buffer.Adress{ .index = 3, .pointer = 5 };
 
@@ -39,6 +51,7 @@ pub fn main() !void {
     proc.iptr = instr[0..];
     // VM.loadProcess(&proc);
 
+    _ = try parser.parse(test_string[0..], gpa);
     try VM.init(gpa);
     defer VM.deinit();
     // var yy: y = try .init(debug_alloc.allocator());

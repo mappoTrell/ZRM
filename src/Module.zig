@@ -24,9 +24,9 @@ labels: [][*]Word,
 
 functions: std.StringHashMapUnmanaged(Function),
 
-fn init(alloc: std.mem.Allocator) !Module {
+pub fn init(alloc: std.mem.Allocator) !Module {
     var arena = try alloc.create(std.heap.ArenaAllocator);
-    arena.init(alloc);
+    arena.* = .init(alloc);
     return Module{
         .arena = arena,
         .alloc = arena.allocator(),
